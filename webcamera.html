@@ -8,8 +8,8 @@
     :root {
       color-scheme: light;
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #eef2f6;
-      color: #1f2933;
+      background: #0b0f19;
+      color: #edf2f7;
     }
 
     * {
@@ -18,31 +18,36 @@
 
     body {
       margin: 0;
-      padding: 24px;
-    }
-
-    main {
-      max-width: 1100px;
-      margin: 0 auto;
+      min-height: 100vh;
+      background: #0b0f19;
     }
 
     h1 {
-      margin: 0 0 8px;
-      font-size: 30px;
+      margin: 0;
+      font-size: 18px;
+      font-weight: 700;
     }
 
     h2 {
-      margin: 28px 0 12px;
-      font-size: 20px;
+      margin: 0 0 14px;
+      font-size: 16px;
     }
 
     h3 {
-      margin: 0 0 8px;
-      font-size: 15px;
+      margin: 0 0 10px;
+      font-size: 13px;
+      color: #cbd5e1;
     }
 
     p {
-      line-height: 1.7;
+      margin: 0;
+      color: #a8b3c7;
+      line-height: 1.6;
+    }
+
+    details {
+      border-top: 1px solid #263244;
+      padding-top: 14px;
     }
 
     button,
@@ -53,56 +58,93 @@
 
     button {
       border: 0;
-      border-radius: 8px;
-      padding: 10px 14px;
-      background: #2563eb;
+      border-radius: 10px;
+      padding: 10px 15px;
+      background: #2d8cff;
       color: white;
       cursor: pointer;
+      font-weight: 700;
     }
 
     button:hover {
-      background: #1d4ed8;
+      background: #1477e8;
     }
 
     button.secondary {
-      background: #4b5563;
+      background: #2a3444;
     }
 
     button.secondary:hover {
-      background: #374151;
+      background: #39465a;
     }
 
     button.danger {
-      background: #dc2626;
+      background: #e23b3b;
     }
 
     button.danger:hover {
-      background: #b91c1c;
+      background: #c62828;
     }
 
     input,
     textarea {
       width: 100%;
-      border: 1px solid #cbd5e1;
-      border-radius: 8px;
+      border: 1px solid #334155;
+      border-radius: 10px;
       padding: 10px;
-      background: white;
+      background: #0f1724;
+      color: #edf2f7;
+    }
+
+    input::placeholder,
+    textarea::placeholder {
+      color: #7b8798;
     }
 
     textarea {
-      min-height: 130px;
+      min-height: 110px;
       resize: vertical;
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+    }
+
+    summary {
+      cursor: pointer;
+      color: #dbeafe;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .app-shell {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      min-height: 58px;
+      padding: 12px 18px;
+      background: #111827;
+      border-bottom: 1px solid #253044;
+    }
+
+    .topbar-copy {
       font-size: 13px;
     }
 
-    .toolbar,
-    .chat-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      align-items: center;
-      margin: 16px 0;
+    .meeting-area {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 340px;
+      gap: 16px;
+      flex: 1;
+      min-height: 0;
+      padding: 16px;
+      overflow: auto;
     }
 
     .status {
@@ -111,49 +153,110 @@
       gap: 8px;
       padding: 8px 12px;
       border-radius: 999px;
-      background: #d9f99d;
-      color: #365314;
+      background: #172033;
+      color: #dbeafe;
       font-weight: 700;
+      white-space: nowrap;
     }
 
     .videos {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 16px;
+      position: relative;
+      min-height: 520px;
+      border-radius: 16px;
+      overflow: hidden;
+      background: #05070d;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
     }
 
     .video-box {
-      min-width: 0;
+      position: absolute;
+      overflow: hidden;
+      background: #111827;
+    }
+
+    .video-box.remote {
+      inset: 0;
+    }
+
+    .video-box.local {
+      right: 18px;
+      bottom: 18px;
+      z-index: 2;
+      width: min(280px, 34vw);
+      border: 2px solid rgba(255, 255, 255, 0.24);
+      border-radius: 14px;
+      box-shadow: 0 18px 45px rgba(0, 0, 0, 0.45);
+    }
+
+    .video-label {
+      position: absolute;
+      left: 12px;
+      bottom: 12px;
+      z-index: 3;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.62);
+      color: white;
+      font-size: 12px;
+      font-weight: 700;
     }
 
     video {
       width: 100%;
-      max-width: 520px;
-      aspect-ratio: 16 / 9;
+      height: 100%;
       display: block;
-      border-radius: 8px;
-      background: #111827;
       object-fit: cover;
+    }
+
+    .side-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-height: 0;
+      overflow: auto;
+      padding: 16px;
+      border-radius: 16px;
+      background: #111827;
+      border: 1px solid #253044;
+    }
+
+    .panel-section {
+      padding-bottom: 16px;
+      border-bottom: 1px solid #263244;
+    }
+
+    .panel-section:last-child {
+      border-bottom: 0;
+      padding-bottom: 0;
     }
 
     .sdp-grid {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 16px;
+      gap: 12px;
     }
 
     .easy-connect {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 16px;
-      margin: 16px 0;
+      gap: 12px;
     }
 
     .easy-panel {
-      padding: 14px;
-      border: 1px solid #cbd5e1;
-      border-radius: 8px;
-      background: white;
+      padding: 12px;
+      border: 1px solid #263244;
+      border-radius: 12px;
+      background: #0d1421;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 18px;
+      background: #111827;
+      border-top: 1px solid #253044;
+      z-index: 10;
     }
 
     .sdp-actions {
@@ -163,21 +266,28 @@
       margin-top: 8px;
     }
 
+    .chat-row {
+      display: grid;
+      grid-template-columns: 110px 1fr auto;
+      gap: 8px;
+    }
+
     .name-input {
-      max-width: 180px;
+      max-width: none;
     }
 
     .message-input {
-      flex: 1 1 260px;
+      min-width: 0;
     }
 
     #log {
-      height: 220px;
+      flex: 1;
+      min-height: 180px;
       overflow-y: auto;
-      border: 1px solid #cbd5e1;
-      border-radius: 8px;
+      border: 1px solid #263244;
+      border-radius: 12px;
       padding: 10px;
-      background: #f8fafc;
+      background: #0d1421;
     }
 
     .log-item {
@@ -186,108 +296,162 @@
     }
 
     .log-self {
-      color: #075985;
+      color: #93c5fd;
       font-weight: 700;
     }
 
     .log-peer {
-      color: #166534;
+      color: #86efac;
       font-weight: 700;
     }
 
     .log-system {
-      color: #475569;
+      color: #a8b3c7;
     }
 
-    @media (max-width: 720px) {
-      body {
-        padding: 16px;
+    @media (max-width: 920px) {
+      .meeting-area {
+        grid-template-columns: 1fr;
       }
 
-      .videos,
-      .easy-connect,
-      .sdp-grid {
+      .videos {
+        min-height: 56vw;
+      }
+
+      .side-panel {
+        min-height: 420px;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .topbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .meeting-area {
+        padding: 10px;
+      }
+
+      .videos {
+        min-height: 66vw;
+      }
+
+      .video-box.local {
+        width: 42vw;
+        right: 10px;
+        bottom: 10px;
+      }
+
+      .chat-row {
         grid-template-columns: 1fr;
+      }
+
+      .toolbar {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 6px;
+        padding: 8px;
+      }
+
+      .toolbar button {
+        min-height: 42px;
+        padding: 8px 4px;
+        font-size: 12px;
       }
     }
   </style>
 </head>
 <body>
-  <main>
-    <h1>WebRTC Camera Chat</h1>
-    <p>2つのブラウザでOfferとAnswerを交換して、チャット、カメラ映像、マイク音声をP2P接続します。</p>
-
-    <p class="status">接続状態: <span id="connectionState">未接続</span></p>
-
-    <div class="toolbar">
-      <button id="startCameraButton">カメラとマイクを開始</button>
-      <button id="toggleCameraButton" class="secondary">カメラをオフ</button>
-      <button id="muteButton" class="secondary">マイクをミュート</button>
-      <button id="stopCameraButton" class="danger">カメラとマイクを停止</button>
-      <button id="createOfferButton">Offerを作る</button>
-    </div>
-
-    <h2>かんたん接続</h2>
-    <div class="easy-connect">
-      <section class="easy-panel">
-        <h3>1人目</h3>
-        <button id="createRoomButton">部屋IDを作る</button>
-        <div class="sdp-actions">
-          <input id="roomId" type="text" readonly placeholder="部屋ID">
-          <button id="copyRoomButton" class="secondary">コピー</button>
-        </div>
-      </section>
-
-      <section class="easy-panel">
-        <h3>2人目</h3>
-        <input id="joinRoomId" type="text" placeholder="相手の部屋ID">
-        <div class="sdp-actions">
-          <button id="joinRoomButton">参加する</button>
-        </div>
-      </section>
-    </div>
-
-    <h2>映像</h2>
-    <div class="videos">
-      <div class="video-box">
-        <h3>自分の映像</h3>
-        <video id="localVideo" autoplay playsinline muted></video>
+  <main class="app-shell">
+    <header class="topbar">
+      <div>
+        <h1>WebRTC Camera Chat</h1>
+        <p class="topbar-copy">部屋IDで参加できる小さなビデオ通話アプリ</p>
       </div>
+      <p class="status">接続状態: <span id="connectionState">未接続</span></p>
+    </header>
 
-      <div class="video-box">
-        <h3>相手の映像</h3>
-        <video id="remoteVideo" autoplay playsinline></video>
-      </div>
-    </div>
+    <div class="meeting-area">
+      <section class="videos" aria-label="映像">
+        <div class="video-box remote">
+          <video id="remoteVideo" autoplay playsinline></video>
+          <span class="video-label">相手</span>
+        </div>
 
-    <h2>接続情報</h2>
-    <div class="sdp-grid">
-      <section>
-        <h3>自分の接続情報</h3>
-        <textarea id="localSdp" readonly></textarea>
-        <div class="sdp-actions">
-          <button id="copyLocalButton" class="secondary">コピー</button>
+        <div class="video-box local">
+          <video id="localVideo" autoplay playsinline muted></video>
+          <span class="video-label">自分</span>
         </div>
       </section>
 
-      <section>
-        <h3>相手の接続情報</h3>
-        <textarea id="remoteSdp"></textarea>
-        <div class="sdp-actions">
-          <button id="setRemoteButton">相手の情報を読み込む</button>
-        </div>
-      </section>
+      <aside class="side-panel">
+        <section class="panel-section">
+          <h2>かんたん接続</h2>
+          <div class="easy-connect">
+            <section class="easy-panel">
+              <h3>1人目</h3>
+              <button id="createRoomButton">部屋IDを作る</button>
+              <div class="sdp-actions">
+                <input id="roomId" type="text" readonly placeholder="部屋ID">
+                <button id="copyRoomButton" class="secondary">コピー</button>
+              </div>
+            </section>
+
+            <section class="easy-panel">
+              <h3>2人目</h3>
+              <input id="joinRoomId" type="text" placeholder="相手の部屋ID">
+              <div class="sdp-actions">
+                <button id="joinRoomButton">参加する</button>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <h2>チャット</h2>
+          <div class="chat-row">
+            <input id="nameInput" class="name-input" type="text" placeholder="名前">
+            <input id="messageInput" class="message-input" type="text" placeholder="メッセージ">
+            <button id="sendButton">送信</button>
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <h2>ログ</h2>
+          <div id="log"></div>
+        </section>
+
+        <details>
+          <summary>手動Offer/Answer</summary>
+          <div class="sdp-grid">
+            <section>
+              <h3>自分の接続情報</h3>
+              <textarea id="localSdp" readonly></textarea>
+              <div class="sdp-actions">
+                <button id="copyLocalButton" class="secondary">コピー</button>
+              </div>
+            </section>
+
+            <section>
+              <h3>相手の接続情報</h3>
+              <textarea id="remoteSdp"></textarea>
+              <div class="sdp-actions">
+                <button id="setRemoteButton">相手の情報を読み込む</button>
+              </div>
+            </section>
+          </div>
+        </details>
+      </aside>
     </div>
 
-    <h2>チャット</h2>
-    <div class="chat-row">
-      <input id="nameInput" class="name-input" type="text" placeholder="名前">
-      <input id="messageInput" class="message-input" type="text" placeholder="メッセージ">
-      <button id="sendButton">送信</button>
-    </div>
-
-    <h2>ログ</h2>
-    <div id="log"></div>
+    <nav class="toolbar" aria-label="通話操作">
+      <button id="startCameraButton">開始</button>
+      <button id="muteButton" class="secondary">ミュート</button>
+      <button id="toggleCameraButton" class="secondary">ビデオ停止</button>
+      <button id="stopCameraButton" class="danger">退出</button>
+      <button id="createOfferButton" class="secondary">手動Offer</button>
+    </nav>
   </main>
 
   <script src="peerjs.min.js"></script>
@@ -568,10 +732,10 @@
       videoTrack.enabled = !videoTrack.enabled;
 
       if (videoTrack.enabled) {
-        toggleCameraButton.textContent = "カメラをオフ";
+        toggleCameraButton.textContent = "ビデオ停止";
         addLog("カメラをオンにしました。");
       } else {
-        toggleCameraButton.textContent = "カメラをオン";
+        toggleCameraButton.textContent = "ビデオ開始";
         addLog("カメラをオフにしました。");
       }
     };
@@ -593,10 +757,10 @@
       audioTrack.enabled = !audioTrack.enabled;
 
       if (audioTrack.enabled) {
-        muteButton.textContent = "マイクをミュート";
+        muteButton.textContent = "ミュート";
         addLog("マイクをオンにしました。");
       } else {
-        muteButton.textContent = "マイクをオン";
+        muteButton.textContent = "ミュート解除";
         addLog("マイクをミュートしました。");
       }
     };
@@ -613,8 +777,8 @@
 
       localStream = null;
       localVideo.srcObject = null;
-      toggleCameraButton.textContent = "カメラをオフ";
-      muteButton.textContent = "マイクをミュート";
+      toggleCameraButton.textContent = "ビデオ停止";
+      muteButton.textContent = "ミュート";
       addLog("カメラとマイクを停止しました。");
     };
 
