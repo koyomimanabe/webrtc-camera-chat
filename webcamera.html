@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebRTC Camera Chat</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #eef2f6;
+      color: #1f2933;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 24px;
+    }
+
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 30px;
+    }
+
+    h2 {
+      margin: 28px 0 12px;
+      font-size: 20px;
+    }
+
+    h3 {
+      margin: 0 0 8px;
+      font-size: 15px;
+    }
+
+    p {
+      line-height: 1.7;
+    }
+
+    button,
+    input,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      border-radius: 8px;
+      padding: 10px 14px;
+      background: #2563eb;
+      color: white;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #1d4ed8;
+    }
+
+    button.secondary {
+      background: #4b5563;
+    }
+
+    button.secondary:hover {
+      background: #374151;
+    }
+
+    button.danger {
+      background: #dc2626;
+    }
+
+    button.danger:hover {
+      background: #b91c1c;
+    }
+
+    input,
+    textarea {
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 10px;
+      background: white;
+    }
+
+    textarea {
+      min-height: 130px;
+      resize: vertical;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 13px;
+    }
+
+    .toolbar,
+    .chat-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin: 16px 0;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: #d9f99d;
+      color: #365314;
+      font-weight: 700;
+    }
+
+    .videos {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .video-box {
+      min-width: 0;
+    }
+
+    video {
+      width: 100%;
+      max-width: 520px;
+      aspect-ratio: 16 / 9;
+      display: block;
+      border-radius: 8px;
+      background: #111827;
+      object-fit: cover;
+    }
+
+    .sdp-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .sdp-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .name-input {
+      max-width: 180px;
+    }
+
+    .message-input {
+      flex: 1 1 260px;
+    }
+
+    #log {
+      height: 220px;
+      overflow-y: auto;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 10px;
+      background: #f8fafc;
+    }
+
+    .log-item {
+      margin: 0 0 6px;
+      line-height: 1.5;
+    }
+
+    .log-self {
+      color: #075985;
+      font-weight: 700;
+    }
+
+    .log-peer {
+      color: #166534;
+      font-weight: 700;
+    }
+
+    .log-system {
+      color: #475569;
+    }
+
+    @media (max-width: 720px) {
+      body {
+        padding: 16px;
+      }
+
+      .videos,
+      .sdp-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>WebRTC Camera Chat</h1>
+    <p>2つのブラウザでOfferとAnswerを交換して、チャット、カメラ映像、マイク音声をP2P接続します。</p>
+
+    <p class="status">接続状態: <span id="connectionState">未接続</span></p>
+
+    <div class="toolbar">
+      <button id="startCameraButton">カメラとマイクを開始</button>
+      <button id="toggleCameraButton" class="secondary">カメラをオフ</button>
+      <button id="muteButton" class="secondary">マイクをミュート</button>
+      <button id="stopCameraButton" class="danger">カメラとマイクを停止</button>
+      <button id="createOfferButton">Offerを作る</button>
+    </div>
+
+    <h2>映像</h2>
+    <div class="videos">
+      <div class="video-box">
+        <h3>自分の映像</h3>
+        <video id="localVideo" autoplay playsinline muted></video>
+      </div>
+
+      <div class="video-box">
+        <h3>相手の映像</h3>
+        <video id="remoteVideo" autoplay playsinline></video>
+      </div>
+    </div>
+
+    <h2>接続情報</h2>
+    <div class="sdp-grid">
+      <section>
+        <h3>自分の接続情報</h3>
+        <textarea id="localSdp" readonly></textarea>
+        <div class="sdp-actions">
+          <button id="copyLocalButton" class="secondary">コピー</button>
+        </div>
+      </section>
+
+      <section>
+        <h3>相手の接続情報</h3>
+        <textarea id="remoteSdp"></textarea>
+        <div class="sdp-actions">
+          <button id="setRemoteButton">相手の情報を読み込む</button>
+        </div>
+      </section>
+    </div>
+
+    <h2>チャット</h2>
+    <div class="chat-row">
+      <input id="nameInput" class="name-input" type="text" placeholder="名前">
+      <input id="messageInput" class="message-input" type="text" placeholder="メッセージ">
+      <button id="sendButton">送信</button>
+    </div>
+
+    <h2>ログ</h2>
+    <div id="log"></div>
+  </main>
+
+  <script>
+    const startCameraButton = document.getElementById("startCameraButton");
+    const toggleCameraButton = document.getElementById("toggleCameraButton");
+    const muteButton = document.getElementById("muteButton");
+    const stopCameraButton = document.getElementById("stopCameraButton");
+    const createOfferButton = document.getElementById("createOfferButton");
+    const setRemoteButton = document.getElementById("setRemoteButton");
+    const copyLocalButton = document.getElementById("copyLocalButton");
+    const localSdp = document.getElementById("localSdp");
+    const remoteSdp = document.getElementById("remoteSdp");
+    const log = document.getElementById("log");
+    const nameInput = document.getElementById("nameInput");
+    const messageInput = document.getElementById("messageInput");
+    const sendButton = document.getElementById("sendButton");
+    const localVideo = document.getElementById("localVideo");
+    const remoteVideo = document.getElementById("remoteVideo");
+    const connectionState = document.getElementById("connectionState");
+
+    const peer = new RTCPeerConnection({
+      iceServers: [
+        { urls: "stun:stun.l.google.com:19302" }
+      ]
+    });
+
+    let channel;
+    let localStream;
+
+    function addLog(text, type = "system") {
+      const div = document.createElement("div");
+      div.className = "log-item log-" + type;
+      div.textContent = text;
+      log.appendChild(div);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function setupChannel() {
+      channel.onopen = () => {
+        addLog("DataChannelが開きました。チャットできます。");
+      };
+
+      channel.onmessage = (event) => {
+        addLog("相手: " + event.data, "peer");
+      };
+
+      channel.onclose = () => {
+        addLog("DataChannelが閉じました。");
+      };
+    }
+
+    function addLocalTracksToPeer() {
+      if (!localStream) {
+        return;
+      }
+
+      const existingTracks = peer.getSenders().map((sender) => sender.track);
+
+      localStream.getTracks().forEach((track) => {
+        if (!existingTracks.includes(track)) {
+          peer.addTrack(track, localStream);
+        }
+      });
+    }
+
+    function waitIceGatheringComplete() {
+      return new Promise((resolve) => {
+        if (peer.iceGatheringState === "complete") {
+          resolve();
+          return;
+        }
+
+        const handleStateChange = () => {
+          if (peer.iceGatheringState === "complete") {
+            peer.removeEventListener("icegatheringstatechange", handleStateChange);
+            resolve();
+          }
+        };
+
+        peer.addEventListener("icegatheringstatechange", handleStateChange);
+      });
+    }
+
+    startCameraButton.onclick = async () => {
+      try {
+        if (localStream) {
+          addLog("カメラとマイクはすでに開始しています。");
+          return;
+        }
+
+        localStream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true
+        });
+
+        localVideo.srcObject = localStream;
+        addLocalTracksToPeer();
+        addLog("自分のカメラとマイクを開始し、WebRTC接続に追加しました。");
+      } catch (error) {
+        addLog("カメラまたはマイクを取得できませんでした: " + error.message);
+      }
+    };
+
+    toggleCameraButton.onclick = () => {
+      if (!localStream) {
+        addLog("まだカメラとマイクを開始していません。");
+        return;
+      }
+
+      const videoTracks = localStream.getVideoTracks();
+
+      if (videoTracks.length === 0) {
+        addLog("映像トラックがありません。");
+        return;
+      }
+
+      const videoTrack = videoTracks[0];
+      videoTrack.enabled = !videoTrack.enabled;
+
+      if (videoTrack.enabled) {
+        toggleCameraButton.textContent = "カメラをオフ";
+        addLog("カメラをオンにしました。");
+      } else {
+        toggleCameraButton.textContent = "カメラをオン";
+        addLog("カメラをオフにしました。");
+      }
+    };
+
+    muteButton.onclick = () => {
+      if (!localStream) {
+        addLog("まだカメラとマイクを開始していません。");
+        return;
+      }
+
+      const audioTracks = localStream.getAudioTracks();
+
+      if (audioTracks.length === 0) {
+        addLog("音声トラックがありません。");
+        return;
+      }
+
+      const audioTrack = audioTracks[0];
+      audioTrack.enabled = !audioTrack.enabled;
+
+      if (audioTrack.enabled) {
+        muteButton.textContent = "マイクをミュート";
+        addLog("マイクをオンにしました。");
+      } else {
+        muteButton.textContent = "マイクをオン";
+        addLog("マイクをミュートしました。");
+      }
+    };
+
+    stopCameraButton.onclick = () => {
+      if (!localStream) {
+        addLog("停止するカメラとマイクがありません。");
+        return;
+      }
+
+      localStream.getTracks().forEach((track) => {
+        track.stop();
+      });
+
+      localStream = null;
+      localVideo.srcObject = null;
+      toggleCameraButton.textContent = "カメラをオフ";
+      muteButton.textContent = "マイクをミュート";
+      addLog("カメラとマイクを停止しました。");
+    };
+
+    peer.ontrack = (event) => {
+      remoteVideo.srcObject = event.streams[0];
+      addLog("相手の映像または音声を受け取りました。");
+    };
+
+    peer.onconnectionstatechange = () => {
+      connectionState.textContent = peer.connectionState;
+      addLog("接続状態: " + peer.connectionState);
+    };
+
+    peer.ondatachannel = (event) => {
+      channel = event.channel;
+      setupChannel();
+      addLog("DataChannelを受け取りました。");
+    };
+
+    createOfferButton.onclick = async () => {
+      try {
+        if (!localStream) {
+          addLog("先にカメラとマイクを開始すると、映像と音声をOfferに含められます。");
+        }
+
+        addLocalTracksToPeer();
+        channel = peer.createDataChannel("chat");
+        setupChannel();
+
+        const offer = await peer.createOffer();
+        await peer.setLocalDescription(offer);
+        await waitIceGatheringComplete();
+
+        localSdp.value = JSON.stringify(peer.localDescription);
+        addLog("Offerを作りました。相手にコピーしてください。");
+      } catch (error) {
+        addLog("Offerを作れませんでした: " + error.message);
+      }
+    };
+
+    setRemoteButton.onclick = async () => {
+      try {
+        const description = JSON.parse(remoteSdp.value);
+        await peer.setRemoteDescription(description);
+
+        if (description.type === "offer") {
+          addLocalTracksToPeer();
+
+          const answer = await peer.createAnswer();
+          await peer.setLocalDescription(answer);
+          await waitIceGatheringComplete();
+
+          localSdp.value = JSON.stringify(peer.localDescription);
+          addLog("Answerを作りました。相手にコピーしてください。");
+        } else {
+          addLog("Answerを読み込みました。接続を待ちます。");
+        }
+      } catch (error) {
+        addLog("相手の接続情報を読み込めませんでした: " + error.message);
+      }
+    };
+
+    copyLocalButton.onclick = async () => {
+      if (!localSdp.value) {
+        addLog("コピーする接続情報がまだありません。");
+        return;
+      }
+
+      try {
+        await navigator.clipboard.writeText(localSdp.value);
+        addLog("自分の接続情報をコピーしました。");
+      } catch (error) {
+        addLog("コピーできませんでした。テキストエリアから手動でコピーしてください。");
+      }
+    };
+
+    sendButton.onclick = () => {
+      const text = messageInput.value.trim();
+      const name = nameInput.value.trim() || "名無し";
+
+      if (!text) {
+        addLog("送信するメッセージを入力してください。");
+        return;
+      }
+
+      if (!channel || channel.readyState !== "open") {
+        addLog("まだ接続されていません。");
+        return;
+      }
+
+      const message = name + ": " + text;
+      channel.send(message);
+      addLog("自分: " + message, "self");
+      messageInput.value = "";
+      messageInput.focus();
+    };
+
+    messageInput.onkeydown = (event) => {
+      if (event.key === "Enter") {
+        sendButton.click();
+      }
+    };
+  </script>
+</body>
+</html>
