@@ -142,8 +142,23 @@
       gap: 16px;
     }
 
+    .easy-connect {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      margin: 16px 0;
+    }
+
+    .easy-panel {
+      padding: 14px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: white;
+    }
+
     .sdp-actions {
       display: flex;
+      flex-wrap: wrap;
       gap: 10px;
       margin-top: 8px;
     }
@@ -190,6 +205,7 @@
       }
 
       .videos,
+      .easy-connect,
       .sdp-grid {
         grid-template-columns: 1fr;
       }
@@ -209,6 +225,26 @@
       <button id="muteButton" class="secondary">マイクをミュート</button>
       <button id="stopCameraButton" class="danger">カメラとマイクを停止</button>
       <button id="createOfferButton">Offerを作る</button>
+    </div>
+
+    <h2>かんたん接続</h2>
+    <div class="easy-connect">
+      <section class="easy-panel">
+        <h3>1人目</h3>
+        <button id="createRoomButton">部屋IDを作る</button>
+        <div class="sdp-actions">
+          <input id="roomId" type="text" readonly placeholder="部屋ID">
+          <button id="copyRoomButton" class="secondary">コピー</button>
+        </div>
+      </section>
+
+      <section class="easy-panel">
+        <h3>2人目</h3>
+        <input id="joinRoomId" type="text" placeholder="相手の部屋ID">
+        <div class="sdp-actions">
+          <button id="joinRoomButton">参加する</button>
+        </div>
+      </section>
     </div>
 
     <h2>映像</h2>
@@ -254,11 +290,17 @@
     <div id="log"></div>
   </main>
 
+  <script src="peerjs.min.js"></script>
   <script>
     const startCameraButton = document.getElementById("startCameraButton");
     const toggleCameraButton = document.getElementById("toggleCameraButton");
     const muteButton = document.getElementById("muteButton");
     const stopCameraButton = document.getElementById("stopCameraButton");
+    const createRoomButton = document.getElementById("createRoomButton");
+    const roomId = document.getElementById("roomId");
+    const copyRoomButton = document.getElementById("copyRoomButton");
+    const joinRoomId = document.getElementById("joinRoomId");
+    const joinRoomButton = document.getElementById("joinRoomButton");
     const createOfferButton = document.getElementById("createOfferButton");
     const setRemoteButton = document.getElementById("setRemoteButton");
     const copyLocalButton = document.getElementById("copyLocalButton");
@@ -280,6 +322,9 @@
 
     let channel;
     let localStream;
+    let easyPeer;
+    let easyConnection;
+    let easyCall;
 
     function addLog(text, type = "system") {
       const div = document.createElement("div");
@@ -335,23 +380,174 @@
       });
     }
 
+    async function startLocalMedia() {
+      if (localStream) {
+        return localStream;
+      }
+
+      localStream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true
+      });
+
+      localVideo.srcObject = localStream;
+      addLocalTracksToPeer();
+      return localStream;
+    }
+
+    function setupEasyConnection(connection) {
+      easyConnection = connection;
+
+      easyConnection.on("open", () => {
+        connectionState.textContent = "connected";
+        addLog("かんたん接続のチャットが開きました。");
+      });
+
+      easyConnection.on("data", (message) => {
+        addLog("相手: " + message, "peer");
+      });
+
+      easyConnection.on("close", () => {
+        connectionState.textContent = "closed";
+        addLog("かんたん接続のチャットが閉じました。");
+      });
+
+      easyConnection.on("error", (error) => {
+        addLog("かんたん接続のチャットでエラー: " + error.message);
+      });
+    }
+
+    function setupEasyCall(call) {
+      easyCall = call;
+
+      easyCall.on("stream", (remoteStream) => {
+        remoteVideo.srcObject = remoteStream;
+        connectionState.textContent = "connected";
+        addLog("かんたん接続で相手の映像と音声を受け取りました。");
+      });
+
+      easyCall.on("close", () => {
+        addLog("かんたん接続の通話が閉じました。");
+      });
+
+      easyCall.on("error", (error) => {
+        addLog("かんたん接続の通話でエラー: " + error.message);
+      });
+    }
+
+    function createEasyPeer() {
+      if (typeof Peer === "undefined") {
+        addLog("かんたん接続ライブラリを読み込めませんでした。ネットワークを確認してください。");
+        return null;
+      }
+
+      if (easyPeer && !easyPeer.destroyed) {
+        easyPeer.destroy();
+      }
+
+      easyPeer = new Peer({
+        debug: 1
+      });
+
+      easyPeer.on("connection", (connection) => {
+        setupEasyConnection(connection);
+      });
+
+      easyPeer.on("call", async (call) => {
+        try {
+          const stream = await startLocalMedia();
+          call.answer(stream);
+          setupEasyCall(call);
+          addLog("相手からの通話に応答しました。");
+        } catch (error) {
+          addLog("通話に応答できませんでした: " + error.message);
+        }
+      });
+
+      easyPeer.on("disconnected", () => {
+        connectionState.textContent = "disconnected";
+        addLog("かんたん接続のシグナリングが切断されました。");
+      });
+
+      easyPeer.on("error", (error) => {
+        addLog("かんたん接続でエラー: " + error.message);
+      });
+
+      return easyPeer;
+    }
+
     startCameraButton.onclick = async () => {
       try {
-        if (localStream) {
+        const wasStarted = Boolean(localStream);
+        await startLocalMedia();
+
+        if (wasStarted) {
           addLog("カメラとマイクはすでに開始しています。");
+        } else {
+          addLog("自分のカメラとマイクを開始し、WebRTC接続に追加しました。");
+        }
+      } catch (error) {
+        addLog("カメラまたはマイクを取得できませんでした: " + error.message);
+      }
+    };
+
+    createRoomButton.onclick = async () => {
+      try {
+        await startLocalMedia();
+        const peerForRoom = createEasyPeer();
+
+        if (!peerForRoom) {
           return;
         }
 
-        localStream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: true
+        peerForRoom.on("open", (id) => {
+          roomId.value = id;
+          connectionState.textContent = "waiting";
+          addLog("部屋IDを作りました。相手にこのIDを伝えてください。");
         });
-
-        localVideo.srcObject = localStream;
-        addLocalTracksToPeer();
-        addLog("自分のカメラとマイクを開始し、WebRTC接続に追加しました。");
       } catch (error) {
-        addLog("カメラまたはマイクを取得できませんでした: " + error.message);
+        addLog("部屋IDを作れませんでした: " + error.message);
+      }
+    };
+
+    joinRoomButton.onclick = async () => {
+      const targetRoomId = joinRoomId.value.trim();
+
+      if (!targetRoomId) {
+        addLog("参加する部屋IDを入力してください。");
+        return;
+      }
+
+      try {
+        const stream = await startLocalMedia();
+        const peerForJoin = createEasyPeer();
+
+        if (!peerForJoin) {
+          return;
+        }
+
+        peerForJoin.on("open", () => {
+          setupEasyConnection(peerForJoin.connect(targetRoomId));
+          setupEasyCall(peerForJoin.call(targetRoomId, stream));
+          connectionState.textContent = "connecting";
+          addLog("部屋IDへ接続しています。");
+        });
+      } catch (error) {
+        addLog("部屋に参加できませんでした: " + error.message);
+      }
+    };
+
+    copyRoomButton.onclick = async () => {
+      if (!roomId.value) {
+        addLog("コピーする部屋IDがまだありません。");
+        return;
+      }
+
+      try {
+        await navigator.clipboard.writeText(roomId.value);
+        addLog("部屋IDをコピーしました。");
+      } catch (error) {
+        addLog("部屋IDをコピーできませんでした。手動でコピーしてください。");
       }
     };
 
@@ -501,6 +697,15 @@
 
       if (!text) {
         addLog("送信するメッセージを入力してください。");
+        return;
+      }
+
+      if (easyConnection && easyConnection.open) {
+        const message = name + ": " + text;
+        easyConnection.send(message);
+        addLog("自分: " + message, "self");
+        messageInput.value = "";
+        messageInput.focus();
         return;
       }
 
