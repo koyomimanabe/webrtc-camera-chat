@@ -1,0 +1,8 @@
+name = "zooom-api"
+main = "worker.js"
+compatibility_date = "2026-06-15"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "zooom_signaling"
+database_id = "f17251dc-1fcd-4c27-829f-0e6808062fd3"

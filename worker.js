@@ -1,0 +1,226 @@
+const ZOOOM_HTML = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ZOOOM</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: #0b0f19; color: #edf2f7; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    button, input { font: inherit; }
+    button { border: 0; border-radius: 10px; padding: 10px 14px; background: #2d8cff; color: white; font-weight: 700; cursor: pointer; }
+    button.secondary { background: #2a3444; }
+    button.danger { background: #e23b3b; }
+    input { width: 100%; border: 1px solid #334155; border-radius: 10px; padding: 10px; background: #0f1724; color: #edf2f7; }
+    .app { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+    .topbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; min-height: 58px; padding: 12px 18px; background: #111827; border-bottom: 1px solid #253044; }
+    h1 { margin: 0; font-size: 18px; }
+    .caption { margin: 4px 0 0; color: #a8b3c7; font-size: 13px; }
+    .status { padding: 8px 12px; border-radius: 999px; background: #172033; color: #dbeafe; font-weight: 700; white-space: nowrap; }
+    .main { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; flex: 1; min-height: 0; padding: 16px; overflow: auto; }
+    .stage { position: relative; min-height: 520px; overflow: hidden; border-radius: 16px; background: #05070d; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35); }
+    .remote { position: absolute; inset: 0; background: #111827; }
+    .local { position: absolute; right: 18px; bottom: 18px; z-index: 2; width: min(280px, 34vw); overflow: hidden; border: 2px solid rgba(255, 255, 255, 0.24); border-radius: 14px; background: #111827; box-shadow: 0 18px 45px rgba(0, 0, 0, 0.45); }
+    video { display: block; width: 100%; height: 100%; object-fit: cover; }
+    .label { position: absolute; left: 12px; bottom: 12px; padding: 6px 10px; border-radius: 999px; background: rgba(0, 0, 0, 0.62); color: white; font-size: 12px; font-weight: 700; }
+    .panel { display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow: auto; padding: 16px; border: 1px solid #253044; border-radius: 16px; background: #111827; }
+    .section { padding-bottom: 14px; border-bottom: 1px solid #263244; }
+    .section:last-child { flex: 1; border-bottom: 0; padding-bottom: 0; }
+    h2 { margin: 0 0 12px; font-size: 16px; }
+    .form-grid, .chat-row { display: grid; gap: 8px; }
+    .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    #log { height: 220px; overflow-y: auto; border: 1px solid #263244; border-radius: 12px; padding: 10px; background: #0d1421; color: #a8b3c7; line-height: 1.5; white-space: pre-wrap; }
+    .toolbar { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; padding: 14px 18px; background: #111827; border-top: 1px solid #253044; }
+    @media (max-width: 920px) { .main { grid-template-columns: 1fr; } .stage { min-height: 56vw; } }
+    @media (max-width: 640px) { .topbar { align-items: flex-start; flex-direction: column; } .main { padding: 10px; } .stage { min-height: 66vw; } .local { width: 42vw; right: 10px; bottom: 10px; } .toolbar { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; padding: 8px; } .toolbar button { min-height: 42px; padding: 8px 4px; font-size: 12px; } }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar"><div><h1>ZOOOM</h1><p class="caption">Cloudflare Workers + D1 signaling video call</p></div><div class="status">接続状態: <span id="connectionState">未接続</span></div></header>
+    <div class="main">
+      <section class="stage"><div class="remote"><video id="remoteVideo" autoplay playsinline></video><span class="label">相手</span></div><div class="local"><video id="localVideo" autoplay playsinline muted></video><span class="label">自分</span></div></section>
+      <aside class="panel">
+        <section class="section"><h2>接続</h2><div class="form-grid"><input id="workerUrl" type="text" placeholder="Worker URL"><div class="two"><input id="room" type="text" value="room1" placeholder="部屋ID"><input id="name" type="text" value="user1" placeholder="名前"></div><div class="two"><button id="receiverButton">受信側</button><button id="callerButton">発信側</button></div></div></section>
+        <section class="section"><h2>チャット</h2><div class="chat-row"><input id="messageInput" type="text" placeholder="メッセージ"><button id="sendButton">送信</button></div></section>
+        <section class="section"><h2>ログ</h2><div id="log"></div></section>
+      </aside>
+    </div>
+    <nav class="toolbar"><button id="startButton">カメラ開始</button><button id="muteButton" class="secondary">ミュート</button><button id="videoButton" class="secondary">ビデオ停止</button><button id="hangupButton" class="danger">切断</button></nav>
+  </main>
+  <script>
+    let localStream; let pc; let timer; let lastId = 0; let sessionId = null; let dataChannel;
+    const localVideo = document.getElementById("localVideo"); const remoteVideo = document.getElementById("remoteVideo"); const logArea = document.getElementById("log"); const connectionState = document.getElementById("connectionState"); const workerUrlInput = document.getElementById("workerUrl"); const roomInput = document.getElementById("room"); const nameInput = document.getElementById("name"); const messageInput = document.getElementById("messageInput"); const startButton = document.getElementById("startButton"); const receiverButton = document.getElementById("receiverButton"); const callerButton = document.getElementById("callerButton"); const hangupButton = document.getElementById("hangupButton"); const muteButton = document.getElementById("muteButton"); const videoButton = document.getElementById("videoButton"); const sendButton = document.getElementById("sendButton");
+    workerUrlInput.value = location.origin;
+    function log(text) { const div = document.createElement("div"); div.textContent = "[" + new Date().toLocaleTimeString() + "] " + text; logArea.appendChild(div); logArea.scrollTop = logArea.scrollHeight; }
+    function api() { return workerUrlInput.value.trim().replace(/\\/$/, ""); }
+    function room() { return roomInput.value.trim(); }
+    function name() { return nameInput.value.trim(); }
+    function newSessionId() { return Date.now() + "-" + Math.random().toString(16).slice(2); }
+    async function startCamera() { if (localStream) return; localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true }); localVideo.srcObject = localStream; log("カメラとマイクを開始しました"); }
+    function setupDataChannel(channel) { dataChannel = channel; dataChannel.onopen = () => log("チャットが使えるようになりました"); dataChannel.onmessage = event => log("相手: " + event.data); }
+    function createPc() { pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] }); for (const track of localStream.getTracks()) pc.addTrack(track, localStream); pc.ontrack = event => { remoteVideo.srcObject = event.streams[0]; log("相手の映像または音声を受信しました"); }; pc.onicecandidate = event => { if (event.candidate) sendSignal("ice", event.candidate).catch(error => log("ICE送信エラー: " + error.message)); }; pc.onconnectionstatechange = () => { connectionState.textContent = pc.connectionState; log("接続状態: " + pc.connectionState); }; pc.oniceconnectionstatechange = () => log("ICE状態: " + pc.iceConnectionState); pc.ondatachannel = event => setupDataChannel(event.channel); }
+    async function sendSignal(type, payload) { const response = await fetch(api() + "/signal", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ room: room(), sender: name(), sessionId, type, payload }) }); if (!response.ok) throw new Error(await response.text()); }
+    async function clearRoom() { const response = await fetch(api() + "/clear", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ room: room() }) }); if (!response.ok) throw new Error(await response.text()); const data = await response.json(); lastId = 0; log("古いシグナルを削除しました: " + data.deleted); }
+    function startPolling() { if (timer) return; timer = setInterval(async () => { try { let url = api() + "/signals?room=" + encodeURIComponent(room()) + "&receiver=" + encodeURIComponent(name()) + "&after=" + lastId; if (sessionId) url += "&sessionId=" + encodeURIComponent(sessionId); const response = await fetch(url); const data = await response.json(); for (const signal of data.signals) { lastId = Math.max(lastId, signal.id); await handleSignal(signal); } } catch (error) { log("ポーリングエラー: " + error.message); } }, 1000); log("ポーリング開始"); }
+    async function handleSignal(signal) { if (!pc) return; if (signal.type === "offer" && sessionId === null) { sessionId = signal.sessionId; log("sessionIdを採用: " + sessionId); } if (signal.sessionId && sessionId && signal.sessionId !== sessionId) { log("別sessionIdを無視: " + signal.sessionId); return; } if (signal.type === "offer") { if (pc.signalingState !== "stable") { log("Offerを無視: " + pc.signalingState); return; } await pc.setRemoteDescription(signal.payload); const answer = await pc.createAnswer(); await pc.setLocalDescription(answer); await sendSignal("answer", pc.localDescription); log("Offerを受信しAnswerを送信しました"); return; } if (signal.type === "answer") { if (pc.signalingState === "have-local-offer") { await pc.setRemoteDescription(signal.payload); log("Answerを受信しました"); } else { log("Answerを無視: " + pc.signalingState); } return; } if (signal.type === "ice") { if (!pc.remoteDescription) return; try { await pc.addIceCandidate(signal.payload); } catch (error) { log("ICE追加エラー: " + error.message); } } }
+    async function receiver() { if (pc) { log("すでに接続処理中です"); return; } await startCamera(); sessionId = null; lastId = 0; createPc(); startPolling(); log("受信側として待機します"); }
+    async function caller() { if (pc) { log("すでに接続処理中です"); return; } await startCamera(); sessionId = newSessionId(); lastId = 0; await clearRoom(); createPc(); setupDataChannel(pc.createDataChannel("chat")); startPolling(); const offer = await pc.createOffer(); await pc.setLocalDescription(offer); await sendSignal("offer", pc.localDescription); log("Offerを送信しました: " + sessionId); }
+    function hangup() { if (timer) clearInterval(timer); timer = null; if (pc) pc.close(); pc = null; if (localStream) localStream.getTracks().forEach(track => track.stop()); localStream = null; localVideo.srcObject = null; remoteVideo.srcObject = null; lastId = 0; sessionId = null; dataChannel = null; connectionState.textContent = "closed"; log("切断しました"); }
+    function toggleMute() { if (!localStream) { log("まだカメラを開始していません"); return; } const audioTrack = localStream.getAudioTracks()[0]; audioTrack.enabled = !audioTrack.enabled; muteButton.textContent = audioTrack.enabled ? "ミュート" : "ミュート解除"; log(audioTrack.enabled ? "マイクをオンにしました" : "マイクをミュートしました"); }
+    function toggleVideo() { if (!localStream) { log("まだカメラを開始していません"); return; } const videoTrack = localStream.getVideoTracks()[0]; videoTrack.enabled = !videoTrack.enabled; videoButton.textContent = videoTrack.enabled ? "ビデオ停止" : "ビデオ開始"; log(videoTrack.enabled ? "ビデオをオンにしました" : "ビデオを停止しました"); }
+    function sendChat() { const text = messageInput.value.trim(); if (!text) return; if (!dataChannel || dataChannel.readyState !== "open") { log("まだチャットは接続されていません"); return; } const message = name() + ": " + text; dataChannel.send(message); log("自分: " + message); messageInput.value = ""; }
+    startButton.onclick = () => startCamera().catch(error => log("カメラ開始エラー: " + error.message)); receiverButton.onclick = () => receiver().catch(error => log("受信側エラー: " + error.message)); callerButton.onclick = () => caller().catch(error => log("発信側エラー: " + error.message)); hangupButton.onclick = hangup; muteButton.onclick = toggleMute; videoButton.onclick = toggleVideo; sendButton.onclick = sendChat; messageInput.onkeydown = event => { if (event.key === "Enter") sendButton.click(); };
+  </script>
+</body>
+</html>`;
+
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+
+    if (request.method === "OPTIONS") {
+      return new Response(null, { headers: cors() });
+    }
+
+    try {
+      if (url.pathname === "/" || url.pathname === "/zooom.html") {
+        return html(ZOOOM_HTML);
+      }
+
+      if (url.pathname === "/signal" && request.method === "POST") {
+        return await postSignal(request, env);
+      }
+
+      if (url.pathname === "/signals" && request.method === "GET") {
+        return await getSignals(request, env);
+      }
+
+      if (url.pathname === "/clear" && request.method === "POST") {
+        return await clearRoom(request, env);
+      }
+
+      return json({ error: "Not Found" }, 404);
+    } catch (error) {
+      return json({ error: error.message }, 500);
+    }
+  }
+};
+
+function cors() {
+  return {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type"
+  };
+}
+
+function json(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      ...cors(),
+      "content-type": "application/json; charset=utf-8"
+    }
+  });
+}
+
+function html(data, status = 200) {
+  return new Response(data, {
+    status,
+    headers: {
+      ...cors(),
+      "content-type": "text/html; charset=utf-8"
+    }
+  });
+}
+
+async function postSignal(request, env) {
+  const body = await request.json();
+  const room = String(body.room || "").trim();
+  const sender = String(body.sender || "").trim();
+  const sessionId = String(body.sessionId || "").trim();
+  const type = String(body.type || "").trim();
+  const payload = body.payload;
+
+  if (!room || !sender || !type || !payload) {
+    return json({ error: "room, sender, type, payload are required" }, 400);
+  }
+
+  if (!["offer", "answer", "ice"].includes(type)) {
+    return json({ error: "type must be offer, answer, or ice" }, 400);
+  }
+
+  await env.DB.prepare(
+    `INSERT INTO signals (room, sender, session_id, type, payload, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).bind(
+    room,
+    sender,
+    sessionId,
+    type,
+    JSON.stringify(payload),
+    Date.now()
+  ).run();
+
+  return json({ ok: true });
+}
+
+async function getSignals(request, env) {
+  const url = new URL(request.url);
+  const room = url.searchParams.get("room") || "";
+  const receiver = url.searchParams.get("receiver") || "";
+  const after = Number(url.searchParams.get("after") || "0");
+  const sessionId = url.searchParams.get("sessionId") || "";
+
+  if (!room || !receiver) {
+    return json({ error: "room and receiver are required" }, 400);
+  }
+
+  const sql = sessionId
+    ? `SELECT id, sender, session_id, type, payload
+         FROM signals
+        WHERE room = ? AND sender != ? AND id > ? AND session_id = ?
+        ORDER BY id ASC
+        LIMIT 100`
+    : `SELECT id, sender, session_id, type, payload
+         FROM signals
+        WHERE room = ? AND sender != ? AND id > ?
+        ORDER BY id ASC
+        LIMIT 100`;
+
+  const statement = sessionId
+    ? env.DB.prepare(sql).bind(room, receiver, after, sessionId)
+    : env.DB.prepare(sql).bind(room, receiver, after);
+
+  const { results } = await statement.all();
+
+  return json({
+    ok: true,
+    signals: results.map((row) => ({
+      id: row.id,
+      sender: row.sender,
+      sessionId: row.session_id,
+      type: row.type,
+      payload: JSON.parse(row.payload)
+    }))
+  });
+}
+
+async function clearRoom(request, env) {
+  const body = await request.json();
+  const room = String(body.room || "").trim();
+
+  if (!room) {
+    return json({ error: "room is required" }, 400);
+  }
+
+  const result = await env.DB.prepare(
+    `DELETE FROM signals WHERE room = ?`
+  ).bind(room).run();
+
+  return json({
+    ok: true,
+    deleted: result.meta.changes
+  });
+}

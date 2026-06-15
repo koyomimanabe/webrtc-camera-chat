@@ -1,0 +1,13 @@
+{
+  "name": "zooom-webrtc-signaling",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "deploy": "npx wrangler deploy",
+    "d1:create": "npx wrangler d1 create zooom_signaling",
+    "d1:schema": "npx wrangler d1 execute zooom_signaling --remote --file=./schema.sql"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
